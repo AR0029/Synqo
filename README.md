@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://synqoo.vercel.app/favicon.ico" alt="Synqo Logo" width="80" height="80">
+  <img src="./assets/logo.png" alt="Synqo Logo" width="100" height="100">
   <h1 align="center">Synqo</h1>
   <p align="center">
     <strong>The Ultimate Cross-Platform Collaborative Workspace</strong>
