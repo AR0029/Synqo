@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Ultra Minimalist Dark Theme (Linear/Notion vibes) */
+    --background: #0d0d0e;
+    --foreground: #f4f4f5;
+    --border: #27272a;
+    --surface: #18181b;
+    --surface-elevated: #27272a;
+    --accent: #e4e4e7;
+    --accent-hover: #ffffff;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    /* Minimalist sharp font */
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .neo-container {
+    @apply border border-[var(--border)] bg-[var(--surface)] shadow-md rounded-lg;
+  }
+  .neo-button {
+    @apply bg-[var(--foreground)] text-[var(--background)] px-4 py-2 font-medium 
+           hover:bg-[var(--accent)] active:scale-[0.98] transition-all rounded-md flex items-center justify-center gap-2;
+  }
+  .neo-button-ghost {
+    @apply hover:bg-[var(--surface-elevated)] px-4 py-2 text-[var(--foreground)] 
+           transition-colors rounded-md font-medium flex items-center justify-center gap-2;
+  }
+  .neo-input {
+    @apply bg-transparent border border-[var(--border)] focus:border-[var(--accent)] 
+           focus:outline-none px-3 py-2 rounded-md transition-colors w-full placeholder:text-neutral-500;
+  }
+}
+
+/* Force CSS compiler rebuild cache */
