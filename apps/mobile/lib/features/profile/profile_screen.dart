@@ -151,6 +151,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             : const Text('Save Profile', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                         ),
                       ),
+                      const SizedBox(height: 64),
+                      Center(
+                        child: Column(
+                          children: [
+                            ShaderMask(
+                              shaderCallback: (bounds) => const LinearGradient(
+                                colors: [Color(0xFF8B5CF6), Color(0xFF60A5FA)],
+                              ).createShader(bounds),
+                              child: const Text(
+                                'Made with passion by Aryan Chaudhary',
+                                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'SYNQO v1.0.0',
+                              style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),

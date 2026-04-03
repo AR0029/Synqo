@@ -82,6 +82,15 @@ export default function Settings() {
           {saving ? 'Saving Profile...' : 'Save Profile'}
         </button>
       </form>
+
+      <div className="mt-16 pt-8 border-t border-white/5 flex flex-col items-center justify-center opacity-60 hover:opacity-100 transition-opacity duration-300">
+        <p className="text-sm font-medium tracking-wide bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+          Made with passion by Aryan Chaudhary
+        </p>
+        <p className="text-[10px] text-white/30 mt-2 uppercase tracking-widest font-black">
+          Synqo v1.0.0
+        </p>
+      </div>
     </div>
   )
 }
