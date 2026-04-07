@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/router.dart';
 import 'providers/realtime_providers.dart';
+import 'dart:async';
 
 const supabaseUrl = 'https://drboixdtwjqihsmulifu.supabase.co';
 const supabaseKey = 'sb_publishable_ibWGspqO3VNYiyEl3I9C3Q_IjgrdGix';
@@ -34,15 +35,19 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
+  Timer? _tokenRefreshTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _listenToAuthChanges();
+    _startTokenRefreshTimer();
   }
 
   @override
   void dispose() {
+    _tokenRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -51,8 +56,26 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _reconnectRealtime();
+      _forceRefreshAndReconnect();
     }
+  }
+
+  /// Proactively refresh the JWT every 45 min so the WebSocket never
+  /// sees an expired token — even when no HTTP calls are being made.
+  void _startTokenRefreshTimer() {
+    _tokenRefreshTimer = Timer.periodic(const Duration(minutes: 45), (_) async {
+      await _forceRefreshAndReconnect();
+    });
+  }
+
+  Future<void> _forceRefreshAndReconnect() async {
+    try {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) return;
+      // Force an HTTP call to get a fresh JWT
+      await Supabase.instance.client.auth.refreshSession();
+    } catch (_) {}
+    _reconnectRealtime();
   }
 
   void _listenToAuthChanges() {
