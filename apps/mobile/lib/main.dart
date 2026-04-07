@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/router.dart';
+import 'providers/realtime_providers.dart';
 
-// Ensure you replace these with your actual Supabase URL and Anon Key
 const supabaseUrl = 'https://drboixdtwjqihsmulifu.supabase.co';
 const supabaseKey = 'sb_publishable_ibWGspqO3VNYiyEl3I9C3Q_IjgrdGix';
 
@@ -13,6 +13,10 @@ void main() async {
   await Supabase.initialize(
     url: supabaseUrl,
     anonKey: supabaseKey,
+    realtimeClientOptions: const RealtimeClientOptions(
+      // Automatically reconnect the WS on network drops
+      eventsPerSecond: 10,
+    ),
   );
 
   runApp(
@@ -22,26 +26,66 @@ void main() async {
   );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _listenToAuthChanges();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// When the app comes back from background, force Realtime to reconnect.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reconnectRealtime();
+    }
+  }
+
+  void _listenToAuthChanges() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (!mounted) return;
+
+      final event = data.event;
       final session = data.session;
-      if (session != null) {
+
+      // On token refresh, reconnect Realtime so it uses the fresh JWT
+      if (event == AuthChangeEvent.tokenRefreshed && session != null) {
+        _reconnectRealtime();
+        // Invalidate Riverpod providers so they restart with the new token
+        ref.invalidate(listsStreamProvider);
+      }
+
+      // Navigation on sign-in / sign-out
+      if (session != null &&
+          (event == AuthChangeEvent.signedIn ||
+              event == AuthChangeEvent.initialSession)) {
         appRouter.go('/');
-      } else {
+      } else if (event == AuthChangeEvent.signedOut) {
         appRouter.go('/login');
       }
     });
+  }
+
+  void _reconnectRealtime() {
+    try {
+      final realtime = Supabase.instance.client.realtime;
+      realtime.disconnect();
+      realtime.connect();
+    } catch (_) {}
   }
 
   @override

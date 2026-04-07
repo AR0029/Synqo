@@ -7,8 +7,20 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
   return Supabase.instance.client;
 });
 
-// Stream of lists the user has access to
+/// Watches the current auth session. When the JWT refreshes, dependent
+/// providers (listsStreamProvider, tasksStreamProvider) are automatically
+/// invalidated and restart with the fresh token.
+final authSessionProvider = StreamProvider<Session?>((ref) {
+  return Supabase.instance.client.auth.onAuthStateChange
+      .map((data) => data.session);
+});
+
+// Stream of ALL lists the user has access to.
+// Depends on authSessionProvider so it restarts when JWT refreshes.
 final listsStreamProvider = StreamProvider<List<TaskList>>((ref) {
+  // Rebuild if auth session changes (token refresh / sign-out)
+  ref.watch(authSessionProvider);
+
   final client = ref.watch(supabaseClientProvider);
   return client
       .from('lists')
@@ -17,8 +29,12 @@ final listsStreamProvider = StreamProvider<List<TaskList>>((ref) {
       .map((data) => data.map((json) => TaskList.fromJson(json)).toList());
 });
 
-// Stream of tasks for a specific list
-final tasksStreamProvider = StreamProvider.family<List<TaskModel>, String>((ref, listId) {
+// Stream of tasks for a specific list.
+// Also depends on authSessionProvider to handle JWT refresh.
+final tasksStreamProvider =
+    StreamProvider.family<List<TaskModel>, String>((ref, listId) {
+  ref.watch(authSessionProvider);
+
   final client = ref.watch(supabaseClientProvider);
   return client
       .from('tasks')
