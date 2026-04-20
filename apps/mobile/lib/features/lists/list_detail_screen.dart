@@ -42,12 +42,11 @@ class ListDetailScreen extends ConsumerWidget {
                   ),
                   onSubmitted: (value) async {
                     if (value.trim().isNotEmpty) {
-                      await Supabase.instance.client.from('tasks').insert({
-                        'list_id': listId,
-                        'title': value.trim(),
-                        'priority': selectedPriority,
-                        'created_by': Supabase.instance.client.auth.currentUser!.id,
-                      });
+                      await ref.read(tasksStreamProvider(listId).notifier).createTask(
+                        value.trim(),
+                        selectedPriority,
+                        Supabase.instance.client.auth.currentUser!.id,
+                      );
                       if (context.mounted) Navigator.pop(context);
                     }
                   },
@@ -90,12 +89,11 @@ class ListDetailScreen extends ConsumerWidget {
                       ),
                       onPressed: () async {
                         if (titleController.text.trim().isNotEmpty) {
-                          await Supabase.instance.client.from('tasks').insert({
-                            'list_id': listId,
-                            'title': titleController.text.trim(),
-                            'priority': selectedPriority,
-                            'created_by': Supabase.instance.client.auth.currentUser!.id,
-                          });
+                          await ref.read(tasksStreamProvider(listId).notifier).createTask(
+                            titleController.text.trim(),
+                            selectedPriority,
+                            Supabase.instance.client.auth.currentUser!.id,
+                          );
                           if (context.mounted) Navigator.pop(context);
                         }
                       },
@@ -146,10 +144,11 @@ class ListDetailScreen extends ConsumerWidget {
                   ),
                   onSubmitted: (value) async {
                     if (value.trim().isNotEmpty) {
-                      await Supabase.instance.client.from('tasks').update({
-                        'title': value.trim(),
-                        'priority': selectedPriority,
-                      }).eq('id', task.id);
+                      await ref.read(tasksStreamProvider(listId).notifier).editTask(
+                        task.id,
+                        value.trim(),
+                        selectedPriority,
+                      );
                       if (context.mounted) Navigator.pop(context);
                     }
                   },
@@ -192,10 +191,11 @@ class ListDetailScreen extends ConsumerWidget {
                       ),
                       onPressed: () async {
                         if (titleController.text.trim().isNotEmpty) {
-                          await Supabase.instance.client.from('tasks').update({
-                            'title': titleController.text.trim(),
-                            'priority': selectedPriority,
-                          }).eq('id', task.id);
+                          await ref.read(tasksStreamProvider(listId).notifier).editTask(
+                            task.id,
+                            titleController.text.trim(),
+                            selectedPriority,
+                          );
                           if (context.mounted) Navigator.pop(context);
                         }
                       },
@@ -212,15 +212,12 @@ class ListDetailScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleTask(String taskId, bool currentStatus) async {
-    await Supabase.instance.client
-        .from('tasks')
-        .update({'is_completed': !currentStatus})
-        .eq('id', taskId);
+  void _toggleTask(WidgetRef ref, String taskId, bool currentStatus) async {
+    ref.read(tasksStreamProvider(listId).notifier).toggleTask(taskId, currentStatus);
   }
 
-  void _deleteTask(String taskId) async {
-    await Supabase.instance.client.from('tasks').delete().eq('id', taskId);
+  void _deleteTask(WidgetRef ref, String taskId) async {
+    ref.read(tasksStreamProvider(listId).notifier).deleteTask(taskId);
   }
 
   void _shareList(BuildContext context) async {
@@ -336,7 +333,7 @@ class ListDetailScreen extends ConsumerWidget {
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           leading: GestureDetector(
-                            onTap: () => _toggleTask(task.id, task.isCompleted),
+                            onTap: () => _toggleTask(ref, task.id, task.isCompleted),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               width: 26, height: 26,
@@ -392,7 +389,7 @@ class ListDetailScreen extends ConsumerWidget {
                               ),
                               IconButton(
                                 icon: Icon(Icons.delete_sweep_rounded, color: Colors.white.withOpacity(0.2)),
-                                onPressed: () => _deleteTask(task.id),
+                                onPressed: () => _deleteTask(ref, task.id),
                               ),
                             ],
                           ),

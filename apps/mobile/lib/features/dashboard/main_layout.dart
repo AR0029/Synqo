@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../features/dashboard/dashboard_screen.dart';
+import '../../features/dashboard/focus_screen.dart';
 import '../../features/profile/profile_screen.dart';
 
 class MainLayout extends StatefulWidget {
@@ -11,7 +12,7 @@ class MainLayout extends StatefulWidget {
 
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
-  final screens = [const DashboardScreen(), const ProfileScreen()];
+  final screens = [const DashboardScreen(), const FocusScreen(), const ProfileScreen()];
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +38,11 @@ class _MainLayoutState extends State<MainLayout> {
               icon: Icon(Icons.check_circle_outline, color: Colors.white54),
               selectedIcon: Icon(Icons.check_circle, color: Colors.white),
               label: 'Projects',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.track_changes_outlined, color: Colors.white54),
+              selectedIcon: Icon(Icons.track_changes, color: Colors.white),
+              label: 'Focus',
             ),
             NavigationDestination(
               icon: Icon(Icons.settings_outlined, color: Colors.white54),
