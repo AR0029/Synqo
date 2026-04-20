@@ -18,6 +18,7 @@ export function Sidebar() {
 
   const links = [
     { href: '/dashboard', label: 'Projects', icon: LayoutDashboard },
+    { href: '/focus', label: 'Focus', icon: CheckSquare },
     { href: '/settings', label: 'Settings', icon: Settings },
   ]
 
