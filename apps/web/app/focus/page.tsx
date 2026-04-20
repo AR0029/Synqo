@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Circle, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -10,19 +10,9 @@ export default function FocusHub() {
   const [lists, setLists] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
-
-  useEffect(() => {
-    fetchData()
-    const channel = supabase.channel('public:tasks-focus').on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'tasks' },
-      () => fetchData()
-    ).subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+  const fetchRef = useRef<() => Promise<void>>()
 
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -45,6 +35,23 @@ export default function FocusHub() {
     }
     setLoading(false)
   }
+
+  fetchRef.current = fetchData
+
+  useEffect(() => {
+    fetchRef.current?.()
+
+    const channel = supabase
+      .channel('focus-tasks')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        fetchRef.current?.()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const toggleTask = async (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()

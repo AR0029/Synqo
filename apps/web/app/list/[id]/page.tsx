@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, CheckCircle2, Circle, Plus, Trash2, Users, Edit2, Share2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -22,19 +22,11 @@ export default function ListDetail({ params }: { params: { id: string } }) {
   const [shareEmail, setShareEmail] = useState('')
   const [shareLoading, setShareLoading] = useState(false)
   
-  const supabase = createClient()
+  // Stable supabase client — never re-created on re-render
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
-
-  useEffect(() => {
-    fetchData()
-    const channel = supabase.channel(`tasks-${params.id}`).on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'tasks', filter: `list_id=eq.${params.id}` },
-      () => fetchData()
-    ).subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [params.id])
+  // Keep a ref so the channel callback always has the latest fetch function
+  const fetchRef = useRef<() => Promise<void>>()
 
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -51,6 +43,32 @@ export default function ListDetail({ params }: { params: { id: string } }) {
 
     setLoading(false)
   }
+
+  // Keep ref current
+  fetchRef.current = fetchData
+
+  useEffect(() => {
+    // Initial load
+    fetchRef.current?.()
+
+    // Single stable channel for this list
+    const channel = supabase
+      .channel(`list-detail-${params.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks', filter: `list_id=eq.${params.id}` },
+        () => { fetchRef.current?.() }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`Realtime subscribed for list ${params.id}`)
+        }
+      })
+
+    return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id])
+
 
   const sortTasks = (tasksList: any[]) => {
     const priorityScore = (p: string) => p === 'high' ? 3 : p === 'medium' ? 2 : p === 'low' ? 1 : 0;

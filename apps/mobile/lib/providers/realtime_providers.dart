@@ -244,7 +244,7 @@ class FocusTasksNotifier extends AsyncNotifier<List<TaskModel>> {
       event: PostgresChangeEvent.all,
       schema: 'public',
       table: 'tasks',
-      filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'is_completed', value: false),
+      filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'is_completed', value: 'false'),
       callback: (payload) async {
         try {
           final data = await client.from('tasks').select('*').eq('is_completed', false);

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Layers, ChevronRight, Plus, Users, Edit2, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -12,19 +12,9 @@ export default function Dashboard() {
   const [newTitle, setNewTitle] = useState('')
   const [editingList, setEditingList] = useState<string | null>(null)
   const [editListTitle, setEditListTitle] = useState('')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
-
-  useEffect(() => {
-    fetchLists()
-    const channel = supabase.channel('public:lists').on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'lists' },
-      () => fetchLists()
-    ).subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+  const fetchRef = useRef<() => Promise<void>>()
 
   const fetchLists = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -33,10 +23,27 @@ export default function Dashboard() {
       return
     }
 
-    const { data, error } = await supabase.from('lists').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase.from('lists').select('*').order('created_at', { ascending: false })
     if (data) setLists(data)
     setLoading(false)
   }
+
+  fetchRef.current = fetchLists
+
+  useEffect(() => {
+    fetchRef.current?.()
+
+    const channel = supabase
+      .channel('dashboard-lists')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lists' }, () => {
+        fetchRef.current?.()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const createList = async (e: React.FormEvent) => {
     e.preventDefault()
