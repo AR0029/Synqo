@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/realtime_providers.dart';
 
 class FocusScreen extends ConsumerWidget {
@@ -8,6 +9,15 @@ class FocusScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final focusTasksAsync = ref.watch(focusTasksProvider);
+    final listsAsync = ref.watch(listsStreamProvider);
+
+    // Build a quick id -> title lookup
+    final listNames = <String, String>{};
+    if (listsAsync.value != null) {
+      for (final l in listsAsync.value!) {
+        listNames[l.id] = l.title;
+      }
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0E),
@@ -31,6 +41,7 @@ class FocusScreen extends ConsumerWidget {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final task = tasks[index];
+                      final listName = listNames[task.listId] ?? 'Project';
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
@@ -41,8 +52,9 @@ class FocusScreen extends ConsumerWidget {
                         child: Dismissible(
                           key: Key(task.id),
                           direction: DismissDirection.startToEnd,
-                          onDismissed: (direction) {
-                            ref.read(focusTasksProvider.notifier).toggleTask(task.id);
+                          confirmDismiss: (_) async {
+                            await ref.read(focusTasksProvider.notifier).toggleTask(task.id);
+                            return false; // we handle removal reactively
                           },
                           background: Container(
                             alignment: Alignment.centerLeft,
@@ -53,48 +65,56 @@ class FocusScreen extends ConsumerWidget {
                             ),
                             child: const Icon(Icons.check_circle, color: Colors.white),
                           ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                            leading: GestureDetector(
-                              onTap: () {
-                                ref.read(focusTasksProvider.notifier).toggleTask(task.id);
-                              },
-                              child: Container(
-                                width: 26, height: 26,
-                                decoration: BoxDecoration(
-                                  color: Colors.transparent,
-                                  border: Border.all(color: Colors.white54, width: 2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                            title: Text(
-                              task.title,
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontFamily: 'Roboto',
-                                color: Colors.white.withOpacity(0.9),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.only(top: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.redAccent.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
-                                ),
-                                child: const Text(
-                                  'URGENT',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                    color: Colors.redAccent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => context.push('/list/${task.listId}'),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              leading: GestureDetector(
+                                onTap: () {
+                                  ref.read(focusTasksProvider.notifier).toggleTask(task.id);
+                                },
+                                child: Container(
+                                  width: 26, height: 26,
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    border: Border.all(color: Colors.white54, width: 2),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
+                                ),
+                              ),
+                              title: Text(
+                                task.title,
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.redAccent.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+                                      ),
+                                      child: const Text('URGENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.redAccent)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        listName,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Colors.white.withOpacity(0.25)),
+                                  ],
                                 ),
                               ),
                             ),

@@ -26,10 +26,11 @@ class ListsNotifier extends AsyncNotifier<List<TaskList>> {
     }
 
     _channel?.unsubscribe();
-    _channel = client.channel('public:lists:all').on(
-      RealtimeListenTypes.postgresChanges,
-      ChannelFilter(event: '*', schema: 'public', table: 'lists'),
-      (payload, [ref]) async {
+    _channel = client.channel('public:lists:all').onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'lists',
+      callback: (payload) async {
         try {
           final data = await client.from('lists').select('*').order('created_at');
           state = AsyncValue.data(fetchLists(data));
@@ -37,7 +38,7 @@ class ListsNotifier extends AsyncNotifier<List<TaskList>> {
           print('Error fetching updated lists: $e');
         }
       },
-    )..subscribe();
+    ).subscribe();
 
     ref.onDispose(() => _channel?.unsubscribe());
 
@@ -90,10 +91,12 @@ class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
     }
 
     _channel?.unsubscribe();
-    _channel = client.channel('public:tasks:$arg').on(
-      RealtimeListenTypes.postgresChanges,
-      ChannelFilter(event: '*', schema: 'public', table: 'tasks', filter: 'list_id=eq.$arg'),
-      (payload, [ref]) async {
+    _channel = client.channel('public:tasks:$arg').onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'tasks',
+      filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'list_id', value: arg),
+      callback: (payload) async {
         try {
           final data = await client.from('tasks').select('*').eq('list_id', arg);
           state = AsyncValue.data(fetchTasks(data));
@@ -101,7 +104,7 @@ class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
           print('Error fetching updated tasks: $e');
         }
       },
-    )..subscribe();
+    ).subscribe();
 
     ref.onDispose(() => _channel?.unsubscribe());
 
@@ -237,10 +240,12 @@ class FocusTasksNotifier extends AsyncNotifier<List<TaskModel>> {
     }
 
     _channel?.unsubscribe();
-    _channel = client.channel('public:tasks:focus').on(
-      RealtimeListenTypes.postgresChanges,
-      ChannelFilter(event: '*', schema: 'public', table: 'tasks', filter: 'is_completed=eq.false'),
-      (payload, [ref]) async {
+    _channel = client.channel('public:tasks:focus').onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'tasks',
+      filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'is_completed', value: false),
+      callback: (payload) async {
         try {
           final data = await client.from('tasks').select('*').eq('is_completed', false);
           state = AsyncValue.data(fetchTasks(data));
@@ -248,7 +253,7 @@ class FocusTasksNotifier extends AsyncNotifier<List<TaskModel>> {
           print('Error fetching updated focus tasks: $e');
         }
       },
-    )..subscribe();
+    ).subscribe();
 
     ref.onDispose(() => _channel?.unsubscribe());
 
