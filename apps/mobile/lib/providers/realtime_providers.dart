@@ -14,32 +14,35 @@ final authSessionProvider = StreamProvider<Session?>((ref) {
 });
 
 class ListsNotifier extends AsyncNotifier<List<TaskList>> {
-  StreamSubscription? _subscription;
+  RealtimeChannel? _channel;
 
   @override
-  FutureOr<List<TaskList>> build() {
+  FutureOr<List<TaskList>> build() async {
     ref.watch(authSessionProvider);
     final client = ref.watch(supabaseClientProvider);
 
-    _subscription?.cancel();
-    _subscription = client
-        .from('lists')
-        .stream(primaryKey: ['id'])
-        .order('created_at')
-        .listen((data) {
-      final lists = data.map((json) => TaskList.fromJson(json)).toList();
-      state = AsyncValue.data(lists);
-    }, onError: (err) {
-      if (state.hasValue) {
-        print('Realtime lists error caught: $err');
-      } else {
-        state = AsyncValue.error(err, StackTrace.current);
-      }
-    });
+    List<TaskList> fetchLists(List<dynamic> data) {
+      return data.map((json) => TaskList.fromJson(json)).toList();
+    }
 
-    ref.onDispose(() => _subscription?.cancel());
+    _channel?.unsubscribe();
+    _channel = client.channel('public:lists:all').on(
+      RealtimeListenTypes.postgresChanges,
+      ChannelFilter(event: '*', schema: 'public', table: 'lists'),
+      (payload, [ref]) async {
+        try {
+          final data = await client.from('lists').select('*').order('created_at');
+          state = AsyncValue.data(fetchLists(data));
+        } catch (e) {
+          print('Error fetching updated lists: $e');
+        }
+      },
+    )..subscribe();
 
-    return Future.delayed(const Duration(milliseconds: 1), () => state.value ?? []);
+    ref.onDispose(() => _channel?.unsubscribe());
+
+    final initialData = await client.from('lists').select('*').order('created_at');
+    return fetchLists(initialData);
   }
 
   Future<void> createList(String title) async {
@@ -72,33 +75,38 @@ class ListsNotifier extends AsyncNotifier<List<TaskList>> {
 final listsStreamProvider = AsyncNotifierProvider<ListsNotifier, List<TaskList>>(() => ListsNotifier());
 
 class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
-  StreamSubscription? _subscription;
+  RealtimeChannel? _channel;
 
   @override
-  FutureOr<List<TaskModel>> build(String arg) {
+  FutureOr<List<TaskModel>> build(String arg) async {
     ref.watch(authSessionProvider);
     final client = ref.watch(supabaseClientProvider);
 
-    _subscription?.cancel();
-    _subscription = client
-        .from('tasks')
-        .stream(primaryKey: ['id'])
-        .eq('list_id', arg)
-        .listen((data) {
-      final tasks = data.map((json) => TaskModel.fromJson(json)).toList();
-      _sortTasks(tasks);
-      state = AsyncValue.data(tasks);
-    }, onError: (err) {
-      if (state.hasValue) {
-        print('Realtime tasks error caught: $err');
-      } else {
-        state = AsyncValue.error(err, StackTrace.current);
-      }
-    });
+    // Initial fetch
+    List<TaskModel> fetchTasks(List<dynamic> data) {
+      final t = data.map((json) => TaskModel.fromJson(json)).toList();
+      _sortTasks(t);
+      return t;
+    }
 
-    ref.onDispose(() => _subscription?.cancel());
+    _channel?.unsubscribe();
+    _channel = client.channel('public:tasks:$arg').on(
+      RealtimeListenTypes.postgresChanges,
+      ChannelFilter(event: '*', schema: 'public', table: 'tasks', filter: 'list_id=eq.$arg'),
+      (payload, [ref]) async {
+        try {
+          final data = await client.from('tasks').select('*').eq('list_id', arg);
+          state = AsyncValue.data(fetchTasks(data));
+        } catch (e) {
+          print('Error fetching updated tasks: $e');
+        }
+      },
+    )..subscribe();
 
-    return Future.delayed(const Duration(milliseconds: 1), () => state.value ?? []);
+    ref.onDispose(() => _channel?.unsubscribe());
+
+    final initialData = await client.from('tasks').select('*').eq('list_id', arg);
+    return fetchTasks(initialData);
   }
 
   void _sortTasks(List<TaskModel> tasks) {
@@ -214,36 +222,38 @@ class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
 final tasksStreamProvider = AsyncNotifierProviderFamily<TasksNotifier, List<TaskModel>, String>(() => TasksNotifier());
 
 class FocusTasksNotifier extends AsyncNotifier<List<TaskModel>> {
-  StreamSubscription? _subscription;
+  RealtimeChannel? _channel;
 
   @override
-  FutureOr<List<TaskModel>> build() {
+  FutureOr<List<TaskModel>> build() async {
     ref.watch(authSessionProvider);
     final client = ref.watch(supabaseClientProvider);
 
-    _subscription?.cancel();
-    _subscription = client
-        .from('tasks')
-        .stream(primaryKey: ['id'])
-        .eq('is_completed', false)
-        .listen((data) {
-      final tasks = data
+    List<TaskModel> fetchTasks(List<dynamic> data) {
+      return data
           .map((json) => TaskModel.fromJson(json))
-          // Manually filter priority since Supabase stream only supports one eq filter
           .where((t) => t.priority == 'high')
           .toList();
-      state = AsyncValue.data(tasks);
-    }, onError: (err) {
-      if (state.hasValue) {
-        print('Realtime focus tasks error caught: $err');
-      } else {
-        state = AsyncValue.error(err, StackTrace.current);
-      }
-    });
+    }
 
-    ref.onDispose(() => _subscription?.cancel());
+    _channel?.unsubscribe();
+    _channel = client.channel('public:tasks:focus').on(
+      RealtimeListenTypes.postgresChanges,
+      ChannelFilter(event: '*', schema: 'public', table: 'tasks', filter: 'is_completed=eq.false'),
+      (payload, [ref]) async {
+        try {
+          final data = await client.from('tasks').select('*').eq('is_completed', false);
+          state = AsyncValue.data(fetchTasks(data));
+        } catch (e) {
+          print('Error fetching updated focus tasks: $e');
+        }
+      },
+    )..subscribe();
 
-    return Future.delayed(const Duration(milliseconds: 1), () => state.value ?? []);
+    ref.onDispose(() => _channel?.unsubscribe());
+
+    final initialData = await client.from('tasks').select('*').eq('is_completed', false);
+    return fetchTasks(initialData);
   }
 
   Future<void> toggleTask(String taskId) async {

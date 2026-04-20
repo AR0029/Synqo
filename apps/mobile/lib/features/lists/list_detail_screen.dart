@@ -292,6 +292,17 @@ class ListDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasksAsync = ref.watch(tasksStreamProvider(listId));
+    final listsAsync = ref.watch(listsStreamProvider);
+
+    String listTitle = 'Tasks';
+    if (listsAsync.value != null) {
+      for (var l in listsAsync.value!) {
+        if (l.id == listId) {
+          listTitle = l.title;
+          break;
+        }
+      }
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0E),
@@ -311,7 +322,7 @@ class ListDetailScreen extends ConsumerWidget {
             ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 48, bottom: 16),
-              title: Text('Tasks', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5, color: Colors.white)),
+              title: Text(listTitle, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5, color: Colors.white)),
             ),
           ),
           tasksAsync.when(
