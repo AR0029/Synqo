@@ -55,11 +55,20 @@ class TtsService {
       return pA.compareTo(pB);
     });
 
-    briefing += "First, you need to ${sortedTasks[0]['title']}. ";
-    briefing += "After that, ${sortedTasks[1]['title']}. ";
+    int tasksToRead = tasks.length > 5 ? 5 : tasks.length;
     
-    if (tasks.length > 2) {
-      briefing += "And there are ${tasks.length - 2} more tasks waiting for you.";
+    briefing += "First, you need to ${sortedTasks[0]['title']}. ";
+    
+    for (int i = 1; i < tasksToRead; i++) {
+      if (i == tasksToRead - 1) {
+        briefing += "And lastly, ${sortedTasks[i]['title']}. ";
+      } else {
+        briefing += "Then, ${sortedTasks[i]['title']}. ";
+      }
+    }
+    
+    if (tasks.length > 5) {
+      briefing += "And there are ${tasks.length - 5} more tasks waiting for you.";
     }
 
     return briefing;
