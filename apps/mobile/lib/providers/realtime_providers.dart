@@ -157,13 +157,14 @@ class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
     }
   }
 
-  Future<void> createTask(String title, String priority, String createdBy) async {
+  Future<void> createTask(String title, String priority, String createdBy, String? blockedById) async {
     final optimisticTask = TaskModel(
       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
       listId: arg,
       title: title,
       isCompleted: false,
       priority: priority,
+      blockedById: blockedById,
       createdAt: DateTime.now(),
     );
 
@@ -179,6 +180,7 @@ class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
         'list_id': arg,
         'title': title,
         'priority': priority,
+        'blocked_by_id': blockedById,
         'created_by': createdBy,
       });
     } catch (e) {

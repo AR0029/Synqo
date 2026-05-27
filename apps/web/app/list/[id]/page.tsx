@@ -11,10 +11,12 @@ export default function ListDetail({ params }: { params: { id: string } }) {
   const [isShared, setIsShared] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskPriority, setNewTaskPriority] = useState('medium')
+  const [newTaskBlockerId, setNewTaskBlockerId] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editTaskTitle, setEditTaskTitle] = useState('')
   const [editTaskPriority, setEditTaskPriority] = useState('medium')
+  const [editTaskBlockerId, setEditTaskBlockerId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Sharing State
@@ -97,6 +99,7 @@ export default function ListDetail({ params }: { params: { id: string } }) {
       title: newTaskTitle.trim(), 
       is_completed: false, 
       priority: newTaskPriority,
+      blocked_by_id: newTaskBlockerId,
       created_at: new Date().toISOString()
     }])
     
@@ -104,10 +107,12 @@ export default function ListDetail({ params }: { params: { id: string } }) {
       list_id: params.id,
       title: newTaskTitle.trim(),
       priority: newTaskPriority,
+      blocked_by_id: newTaskBlockerId,
       created_by: user?.id
     })
     
     setNewTaskTitle('')
+    setNewTaskBlockerId(null)
     setIsCreating(false)
   }
 
@@ -124,8 +129,8 @@ export default function ListDetail({ params }: { params: { id: string } }) {
   const updateTask = async (id: string, e: React.FormEvent) => {
     e.preventDefault()
     if (!editTaskTitle.trim()) return
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, title: editTaskTitle.trim(), priority: editTaskPriority } : t))
-    await supabase.from('tasks').update({ title: editTaskTitle.trim(), priority: editTaskPriority }).eq('id', id)
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, title: editTaskTitle.trim(), priority: editTaskPriority, blocked_by_id: editTaskBlockerId } : t))
+    await supabase.from('tasks').update({ title: editTaskTitle.trim(), priority: editTaskPriority, blocked_by_id: editTaskBlockerId }).eq('id', id)
     setEditingTaskId(null)
   }
 
@@ -210,7 +215,12 @@ export default function ListDetail({ params }: { params: { id: string } }) {
           </div>
         ) : (
           <div className="grid gap-2">
-          {sortedTasks.map(task => (
+          {sortedTasks.map(task => {
+            const blocker = task.blocked_by_id ? sortedTasks.find(t => t.id === task.blocked_by_id) : null;
+            const isBlocked = blocker && !blocker.is_completed;
+            const potentialBlockers = sortedTasks.filter(t => t.id !== task.id && !t.is_completed);
+
+            return (
             <div 
               key={task.id} 
               className={`group flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl border border-white/5 transition-all gap-3 ${
@@ -239,6 +249,19 @@ export default function ListDetail({ params }: { params: { id: string } }) {
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
                   </select>
+                  {potentialBlockers.length > 0 && (
+                    <select
+                      value={editTaskBlockerId || ''}
+                      onChange={(e) => setEditTaskBlockerId(e.target.value || null)}
+                      className="bg-[#27272A] text-white px-3 py-2 sm:py-3 rounded-lg outline-none"
+                      title="Blocked By"
+                    >
+                      <option value="">No Blocker</option>
+                      {potentialBlockers.map(b => (
+                        <option key={b.id} value={b.id}>{b.title}</option>
+                      ))}
+                    </select>
+                  )}
                   <div className="flex gap-2 justify-end mt-2 sm:mt-0">
                     <button type="button" onClick={() => setEditingTaskId(null)} className="px-4 py-2 text-white/50 hover:text-white bg-white/5 sm:bg-transparent rounded-lg sm:rounded-none">Cancel</button>
                     <button type="submit" className="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-bold">Save</button>
@@ -246,15 +269,23 @@ export default function ListDetail({ params }: { params: { id: string } }) {
                 </form>
               ) : (
                 <div className="flex justify-between items-center w-full">
-                  <div className="flex items-center gap-3 sm:gap-4 cursor-pointer flex-1" onClick={() => toggleTask(task.id, task.is_completed)}>
-                    <button className={`p-1 shrink-0 rounded-full border transition-colors ${
+                  <div className="flex items-center gap-3 sm:gap-4 cursor-pointer flex-1" onClick={() => {
+                    if (isBlocked) {
+                      alert(`🔒 Blocked by: ${blocker.title}`);
+                    } else {
+                      toggleTask(task.id, task.is_completed);
+                    }
+                  }}>
+                    <button className={`p-1 shrink-0 rounded-full border transition-colors flex items-center justify-center ${
                       task.is_completed 
                         ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' 
-                        : 'border-white/20 text-transparent hover:border-white/50'
+                        : isBlocked 
+                          ? 'border-white/10 text-white/30 bg-white/5'
+                          : 'border-white/20 text-transparent hover:border-white/50'
                     }`}>
-                      {task.is_completed ? <CheckCircle2 size={18} className="sm:w-[20px] sm:h-[20px]" /> : <Circle size={18} className="sm:w-[20px] sm:h-[20px]" />}
+                      {task.is_completed ? <CheckCircle2 size={18} className="sm:w-[20px] sm:h-[20px]" /> : isBlocked ? <span className="text-[12px] sm:text-[14px]">🔒</span> : <Circle size={18} className="sm:w-[20px] sm:h-[20px]" />}
                     </button>
-                    <span className={`text-base sm:text-lg font-medium transition-all break-words line-clamp-2 ${task.is_completed ? 'text-white/30 line-through' : 'text-white'}`}>
+                    <span className={`text-base sm:text-lg font-medium transition-all break-words line-clamp-2 ${task.is_completed || isBlocked ? 'text-white/30' : 'text-white'} ${task.is_completed ? 'line-through' : ''}`}>
                       {task.title}
                     </span>
                     
@@ -274,6 +305,7 @@ export default function ListDetail({ params }: { params: { id: string } }) {
                         setEditingTaskId(task.id);
                         setEditTaskTitle(task.title);
                         setEditTaskPriority(task.priority || 'medium');
+                        setEditTaskBlockerId(task.blocked_by_id || null);
                       }}
                       className="p-1.5 sm:p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition"
                       title="Edit Task"
@@ -291,7 +323,8 @@ export default function ListDetail({ params }: { params: { id: string } }) {
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
         )}
       </div>
@@ -316,6 +349,19 @@ export default function ListDetail({ params }: { params: { id: string } }) {
             <option value="medium">Medium</option>
             <option value="high">High</option>
           </select>
+          {tasks.filter(t => !t.is_completed).length > 0 && (
+            <select
+              value={newTaskBlockerId || ''}
+              onChange={(e) => setNewTaskBlockerId(e.target.value || null)}
+              className="bg-[#1C1C1F] text-white px-4 py-3 sm:py-4 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 border border-white/5 cursor-pointer text-sm sm:text-base"
+              title="Blocked By"
+            >
+              <option value="">No Blocker</option>
+              {tasks.filter(t => !t.is_completed).map(b => (
+                <option key={b.id} value={b.id}>{b.title}</option>
+              ))}
+            </select>
+          )}
           <div className="flex gap-3 w-full sm:w-auto">
             <button type="submit" className="flex-1 sm:flex-none px-6 sm:px-8 py-3 sm:py-0 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-lg transition text-sm sm:text-base">Add</button>
             <button type="button" onClick={() => setIsCreating(false)} className="flex-1 sm:flex-none px-4 sm:px-6 py-3 sm:py-0 text-white/50 hover:text-white bg-white/5 sm:bg-transparent font-medium rounded-xl text-sm sm:text-base">Cancel</button>

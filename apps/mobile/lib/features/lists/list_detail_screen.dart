@@ -11,9 +11,13 @@ class ListDetailScreen extends ConsumerWidget {
 
   const ListDetailScreen({super.key, required this.listId});
 
-  void _createTask(BuildContext context, WidgetRef ref) async {
+  void _createTask(BuildContext context, WidgetRef ref, List<dynamic> allTasks) async {
     final titleController = TextEditingController();
     String selectedPriority = 'medium';
+    String? selectedBlockerId;
+    
+    final potentialBlockers = allTasks.where((t) => !t.isCompleted).toList();
+    
     await showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF18181B),
@@ -49,6 +53,7 @@ class ListDetailScreen extends ConsumerWidget {
                         value.trim(),
                         selectedPriority,
                         Supabase.instance.client.auth.currentUser!.id,
+                        selectedBlockerId,
                       );
                       if (context.mounted) Navigator.pop(context);
                     }
@@ -84,6 +89,45 @@ class ListDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    if (potentialBlockers.isNotEmpty)
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF27272A),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String?>(
+                              value: selectedBlockerId,
+                              dropdownColor: const Color(0xFF27272A),
+                              icon: const Icon(Icons.link, color: Colors.white54),
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                              isExpanded: true,
+                              hint: const Text('Blocked by...', style: TextStyle(color: Colors.white54)),
+                              items: [
+                                const DropdownMenuItem<String?>(value: null, child: Text('None')),
+                                ...potentialBlockers.map((t) {
+                                  return DropdownMenuItem<String?>(
+                                    value: t.id,
+                                    child: Text(t.title, overflow: TextOverflow.ellipsis),
+                                  );
+                                }),
+                              ],
+                              onChanged: (val) {
+                                setState(() => selectedBlockerId = val);
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
@@ -96,6 +140,7 @@ class ListDetailScreen extends ConsumerWidget {
                             titleController.text.trim(),
                             selectedPriority,
                             Supabase.instance.client.auth.currentUser!.id,
+                            selectedBlockerId,
                           );
                           if (context.mounted) Navigator.pop(context);
                         }
@@ -513,7 +558,7 @@ class ListDetailScreen extends ConsumerWidget {
           children: [
             FloatingActionButton(
               heroTag: 'add_task',
-              onPressed: () => _createTask(context, ref),
+              onPressed: () => _createTask(context, ref, tasksAsync.value ?? []),
               backgroundColor: const Color(0xFF8B5CF6),
               foregroundColor: Colors.white,
               elevation: 10,
