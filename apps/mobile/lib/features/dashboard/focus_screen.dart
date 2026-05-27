@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/realtime_providers.dart';
+import '../../services/tts_service.dart';
+import '../../services/workload_balancer.dart';
 
 class FocusScreen extends ConsumerWidget {
   const FocusScreen({super.key});
@@ -27,6 +29,37 @@ class FocusScreen extends ConsumerWidget {
             backgroundColor: const Color(0xFF0D0D0E).withOpacity(0.8),
             expandedHeight: 140.0,
             pinned: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 28),
+                tooltip: 'Auto-Balance Workload',
+                onPressed: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Analyzing workload...'), duration: Duration(seconds: 1)),
+                  );
+                  final updated = await WorkloadBalancer.balanceWorkload();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(updated > 0 ? 'Optimized $updated tasks across your schedule!' : 'Workload is perfectly balanced.')),
+                    );
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.play_circle_fill, color: Color(0xFF8B5CF6), size: 32),
+                tooltip: 'Daily Briefing',
+                onPressed: () async {
+                  if (focusTasksAsync.value != null) {
+                    final tts = ref.read(ttsServiceProvider);
+                    final briefing = tts.generateBriefing(
+                      focusTasksAsync.value!.map((t) => {'title': t.title, 'priority': t.priority ?? 'medium'}).toList()
+                    );
+                    await tts.speak(briefing);
+                  }
+                },
+              ),
+              const SizedBox(width: 16),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
               title: const Text('Focus Hub', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5, color: Colors.white)),

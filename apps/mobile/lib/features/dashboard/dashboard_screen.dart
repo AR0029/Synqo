@@ -273,6 +273,7 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'add_project',
         onPressed: () => _createList(context, ref),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,

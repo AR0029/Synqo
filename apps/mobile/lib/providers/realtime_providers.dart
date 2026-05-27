@@ -186,12 +186,12 @@ class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
     }
   }
 
-  Future<void> editTask(String taskId, String title, String priority) async {
+  Future<void> editTask(String taskId, String title, String priority, String? blockedById) async {
     final previousState = state.value;
     if (previousState != null) {
       final newList = [
         for (final t in previousState)
-          if (t.id == taskId) t.copyWith(title: title, priority: priority) else t
+          if (t.id == taskId) t.copyWith(title: title, priority: priority, blockedById: blockedById) else t
       ];
       _sortTasks(newList);
       state = AsyncValue.data(newList);
@@ -201,6 +201,7 @@ class TasksNotifier extends FamilyAsyncNotifier<List<TaskModel>, String> {
       await ref.read(supabaseClientProvider).from('tasks').update({
         'title': title,
         'priority': priority,
+        'blocked_by_id': blockedById,
       }).eq('id', taskId);
     } catch (e) {
       if (previousState != null) state = AsyncValue.data(previousState);
@@ -233,10 +234,26 @@ class FocusTasksNotifier extends AsyncNotifier<List<TaskModel>> {
     final client = ref.watch(supabaseClientProvider);
 
     List<TaskModel> fetchTasks(List<dynamic> data) {
-      return data
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      final tasks = data
           .map((json) => TaskModel.fromJson(json))
-          .where((t) => t.priority == 'high')
+          .where((t) {
+            if (t.dueDate == null) return false;
+            final d = t.dueDate!;
+            return !d.isAfter(DateTime(today.year, today.month, today.day, 23, 59, 59));
+          })
           .toList();
+
+      tasks.sort((a, b) {
+        const pMap = {'high': 0, 'medium': 1, 'low': 2};
+        int pA = pMap[a.priority] ?? 1;
+        int pB = pMap[b.priority] ?? 1;
+        return pA.compareTo(pB);
+      });
+
+      return tasks;
     }
 
     _channel?.unsubscribe();

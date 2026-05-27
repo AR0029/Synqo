@@ -5,6 +5,8 @@ class TaskModel {
   final String? description;
   final bool isCompleted;
   final String? priority;
+  final DateTime? dueDate;
+  final String? blockedById;
   final DateTime? createdAt;
 
   TaskModel({
@@ -14,6 +16,8 @@ class TaskModel {
     this.description,
     required this.isCompleted,
     this.priority,
+    this.dueDate,
+    this.blockedById,
     this.createdAt,
   });
 
@@ -25,6 +29,8 @@ class TaskModel {
       description: json['description'] as String?,
       isCompleted: json['is_completed'] as bool? ?? false,
       priority: json['priority'] as String?,
+      dueDate: json['due_date'] != null ? DateTime.tryParse(json['due_date'] as String) : null,
+      blockedById: json['blocked_by_id'] as String?,
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
     );
   }
@@ -36,6 +42,8 @@ class TaskModel {
     String? description,
     bool? isCompleted,
     String? priority,
+    DateTime? dueDate,
+    String? blockedById,
     DateTime? createdAt,
   }) {
     return TaskModel(
@@ -45,6 +53,8 @@ class TaskModel {
       description: description ?? this.description,
       isCompleted: isCompleted ?? this.isCompleted,
       priority: priority ?? this.priority,
+      dueDate: dueDate ?? this.dueDate,
+      blockedById: blockedById ?? this.blockedById,
       createdAt: createdAt ?? this.createdAt,
     );
   }

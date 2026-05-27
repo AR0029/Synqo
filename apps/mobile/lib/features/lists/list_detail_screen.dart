@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/realtime_providers.dart';
+import '../../services/tts_service.dart';
+import '../voice/voice_assistant_widget.dart';
 
 class ListDetailScreen extends ConsumerWidget {
   final String listId;
@@ -110,9 +113,13 @@ class ListDetailScreen extends ConsumerWidget {
     );
   }
 
-  void _editTask(BuildContext context, WidgetRef ref, dynamic task) async {
+  void _editTask(BuildContext context, WidgetRef ref, dynamic task, List<dynamic> allTasks) async {
     final titleController = TextEditingController(text: task.title);
     String selectedPriority = task.priority ?? 'medium';
+    String? selectedBlockerId = task.blockedById;
+    
+    final potentialBlockers = allTasks.where((t) => t.id != task.id && !t.isCompleted).toList();
+    
     await showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF18181B),
@@ -148,6 +155,7 @@ class ListDetailScreen extends ConsumerWidget {
                         task.id,
                         value.trim(),
                         selectedPriority,
+                        selectedBlockerId,
                       );
                       if (context.mounted) Navigator.pop(context);
                     }
@@ -183,6 +191,45 @@ class ListDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    if (potentialBlockers.isNotEmpty)
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF27272A),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String?>(
+                              value: selectedBlockerId,
+                              dropdownColor: const Color(0xFF27272A),
+                              icon: const Icon(Icons.link, color: Colors.white54),
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                              isExpanded: true,
+                              hint: const Text('Blocked by...', style: TextStyle(color: Colors.white54)),
+                              items: [
+                                const DropdownMenuItem<String?>(value: null, child: Text('None')),
+                                ...potentialBlockers.map((t) {
+                                  return DropdownMenuItem<String?>(
+                                    value: t.id,
+                                    child: Text(t.title, overflow: TextOverflow.ellipsis),
+                                  );
+                                }),
+                              ],
+                              onChanged: (val) {
+                                setState(() => selectedBlockerId = val);
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
@@ -195,6 +242,7 @@ class ListDetailScreen extends ConsumerWidget {
                             task.id,
                             titleController.text.trim(),
                             selectedPriority,
+                            selectedBlockerId,
                           );
                           if (context.mounted) Navigator.pop(context);
                         }
@@ -306,14 +354,29 @@ class ListDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0E),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              SliverAppBar(
             backgroundColor: const Color(0xFF0D0D0E).withOpacity(0.8),
             expandedHeight: 140.0,
             pinned: true,
             iconTheme: const IconThemeData(color: Colors.white),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.play_circle_fill, color: Color(0xFF8B5CF6), size: 28),
+                onPressed: () async {
+                  if (tasksAsync.value != null) {
+                    final tts = ref.read(ttsServiceProvider);
+                    final incompleteTasks = tasksAsync.value!.where((t) => !t.isCompleted).toList();
+                    final briefing = tts.generateBriefing(
+                      incompleteTasks.map((t) => {'title': t.title, 'priority': t.priority ?? 'medium'}).toList()
+                    );
+                    await tts.speak(briefing);
+                  }
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.person_add_alt_1_rounded),
                 onPressed: () => _shareList(context),
@@ -334,6 +397,18 @@ class ListDetailScreen extends ConsumerWidget {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final task = tasks[index];
+                      bool isBlocked = false;
+                      String blockerTitle = '';
+                      if (task.blockedById != null) {
+                        try {
+                          final blocker = tasks.firstWhere((t) => t.id == task.blockedById);
+                          if (!blocker.isCompleted) {
+                            isBlocked = true;
+                            blockerTitle = blocker.title;
+                          }
+                        } catch (_) {}
+                      }
+                      
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
@@ -344,16 +419,26 @@ class ListDetailScreen extends ConsumerWidget {
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           leading: GestureDetector(
-                            onTap: () => _toggleTask(ref, task.id, task.isCompleted),
+                            onTap: () {
+                              if (isBlocked) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('🔒 Blocked by: $blockerTitle')),
+                                );
+                              } else {
+                                _toggleTask(ref, task.id, task.isCompleted);
+                              }
+                            },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               width: 26, height: 26,
                               decoration: BoxDecoration(
-                                color: task.isCompleted ? const Color(0xFF8B5CF6) : Colors.transparent,
-                                border: Border.all(color: task.isCompleted ? const Color(0xFF8B5CF6) : Colors.white54, width: 2),
+                                color: task.isCompleted ? const Color(0xFF8B5CF6) : (isBlocked ? Colors.white10 : Colors.transparent),
+                                border: Border.all(color: task.isCompleted ? const Color(0xFF8B5CF6) : (isBlocked ? Colors.white24 : Colors.white54), width: 2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: task.isCompleted ? const Icon(Icons.check_rounded, size: 18, color: Colors.white) : null,
+                              child: task.isCompleted 
+                                ? const Icon(Icons.check_rounded, size: 18, color: Colors.white) 
+                                : (isBlocked ? const Icon(Icons.lock_rounded, size: 14, color: Colors.white54) : null),
                             ),
                           ),
                           title: AnimatedDefaultTextStyle(
@@ -362,7 +447,7 @@ class ListDetailScreen extends ConsumerWidget {
                               fontSize: 17,
                               fontFamily: 'Roboto',
                               decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                              color: task.isCompleted ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.9),
+                              color: task.isCompleted || isBlocked ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.9),
                               fontWeight: task.isCompleted ? FontWeight.normal : FontWeight.w600,
                             ),
                             child: Row(
@@ -396,7 +481,7 @@ class ListDetailScreen extends ConsumerWidget {
                             children: [
                               IconButton(
                                 icon: Icon(Icons.edit_rounded, color: Colors.white.withOpacity(0.4)),
-                                onPressed: () => _editTask(context, ref, task),
+                                onPressed: () => _editTask(context, ref, task, tasks),
                               ),
                               IconButton(
                                 icon: Icon(Icons.delete_sweep_rounded, color: Colors.white.withOpacity(0.2)),
@@ -415,15 +500,29 @@ class ListDetailScreen extends ConsumerWidget {
             loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Colors.white))),
             error: (err, stack) => SliverFillRemaining(child: Center(child: Text('Error: $err', style: const TextStyle(color: Colors.redAccent)))),
           ),
+            ],
+          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _createTask(context, ref),
-        backgroundColor: const Color(0xFF8B5CF6),
-        foregroundColor: Colors.white,
-        elevation: 10,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: const Icon(Icons.add_rounded, size: 30),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              heroTag: 'add_task',
+              onPressed: () => _createTask(context, ref),
+              backgroundColor: const Color(0xFF8B5CF6),
+              foregroundColor: Colors.white,
+              elevation: 10,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              child: const Icon(Icons.add_rounded, size: 30),
+            ),
+            VoiceAssistantWidget(defaultListId: listId),
+          ],
+        ),
       ),
     );
   }
